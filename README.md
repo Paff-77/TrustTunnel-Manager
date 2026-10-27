@@ -1,97 +1,142 @@
+<div align="center">
+
 # TrustTunnel Manager
 
-单文件 Bash 管理器，使用官方 TrustTunnel Endpoint、Cloudflare DNS 和 Certbot。适用于 Debian 12/13、Ubuntu 22.04/24.04，x86_64 或 aarch64，要求 systemd 和 root 权限。默认安装经过配置格式验证的官方 v1.1.0；可使用 `--version` 指定其他官方版本。
+**面向自托管 TrustTunnel Endpoint 的 Bash 安装与管理工具**
 
-## 准备
+[![Shell](https://img.shields.io/badge/shell-bash-121011?logo=gnubash&logoColor=white)](https://www.gnu.org/software/bash/)
+[![Debian](https://img.shields.io/badge/Debian-12%20%7C%2013-A81D33?logo=debian&logoColor=white)](https://www.debian.org/)
+[![Ubuntu](https://img.shields.io/badge/Ubuntu-22.04%20%7C%2024.04-E95420?logo=ubuntu&logoColor=white)](https://ubuntu.com/)
+[![Architecture](https://img.shields.io/badge/arch-x86__64%20%7C%20aarch64-4c8caf)](#系统要求)
 
-- 一台可访问 GitHub、Cloudflare API 和 Let's Encrypt 的 VPS；需要允许客户端访问服务端的 TCP 和 UDP 443（如改用其他端口则使用对应端口）。脚本不会修改防火墙。
-- 已托管在 Cloudflare 的域名，以及限于对应 Zone、具有 **Zone → DNS → Edit** 和 **Zone → Zone → Read** 权限的 API Token。DNS 记录使用 DNS Only。
-- 证书 DNS-01 验证需要 DNS 正常传播。脚本默认不创建 AAAA 记录。启用 IPv6 后会配置 A 和 AAAA 记录，并让服务监听 IPv4/IPv6 双栈；服务器需要同时具备可用的公网 IPv4 和 IPv6，且防火墙须允许相应端口。
+把 TrustTunnel Endpoint、Cloudflare DNS 和 Let's Encrypt 证书管理整合到一个命令行工具中。
 
-## 安装与入口
+[快速开始](#快速开始) · [功能](#功能) · [命令参考](#命令参考) · [安全说明](#安全说明)
 
-将 `trusttunnel.sh` 复制到服务器，执行：
+</div>
 
-```bash
-sudo bash trusttunnel.sh install --domain vpn.example.com --cf-api YOUR_TOKEN
+## 项目简介
+
+TrustTunnel Manager 帮助你在 Linux VPS 上安装和维护官方 TrustTunnel Endpoint。初次安装可使用数字菜单，也可以用命令行完成；安装后通过 `TT` 打开面板或直接运行子命令。
+
+```text
+你的设备 ── TrustTunnel / HTTP/2 或 HTTP/3 ──> VPS
+                                                  ├─ TrustTunnel Endpoint
+Cloudflare DNS ── 域名解析 ───────────────────────┤
+Let's Encrypt ── DNS-01 证书 ─────────────────────┘
 ```
 
-也可以把 Token 单独存入只有 root 可读的文件，并避免将其放进命令历史：
+## 功能
+
+| 能力 | 说明 |
+| --- | --- |
+| 一键部署 | 检查环境、下载官方发行版、生成配置并注册 systemd 服务 |
+| 域名管理 | 通过 Cloudflare API 同步 DNS A 记录；可选启用 IPv6 和 AAAA 记录 |
+| TLS 证书 | 使用 Certbot DNS-01 签发并自动续签 Let's Encrypt 证书 |
+| 日常维护 | 查看状态、控制服务、管理用户、修改域名或端口、查看日志 |
+| 客户端配置 | 导出 Mihomo YAML 与 Surge 配置，支持 HTTP/2、HTTP/3 和自定义节点名称 |
+| 版本升级 | 下载官方 Endpoint 发行包并校验 SHA-256；启动失败时尝试恢复旧程序 |
+| 安全卸载 | 删除本工具管理的 DNS 记录、证书、服务和配置；发现冲突时停止处理 |
+
+## 快速开始
+
+### 系统要求
+
+| 项目 | 支持范围 |
+| --- | --- |
+| 操作系统 | Debian 12/13、Ubuntu 22.04/24.04 |
+| 架构 | x86_64、aarch64 |
+| 权限 | root 或 `sudo` |
+| 服务管理 | systemd |
+| 网络 | 可访问 GitHub、Cloudflare API 和 Let's Encrypt |
+
+VPS 的防火墙和云平台安全组需要允许客户端访问服务端端口。默认使用 TCP 和 UDP 443；脚本不会修改防火墙规则。
+
+### 安装
+
+下载项目后，在项目目录启动交互式面板：
 
 ```bash
-sudo bash trusttunnel.sh install --domain vpn.example.com --cf-token-file /root/cloudflare-token --email you@example.com
-```
-
-`--cf-api` 传入的 Token 可能被 shell 历史、进程列表或自动化系统记录。安装选项还包括 `--ip`、`--port`、`--username`、`--node-name`、`--password-file`、`--version` 、`--ipv6 IPv6|auto` 和 `--update-dns`。默认自动检测公网 IPv4、使用 443 端口、创建 `admin` 用户和随机密码。指定 `--ipv6 auto` 自动识别公网 IPv6，或指定具体的公网 IPv6 地址。未提供邮箱时 Certbot 使用无邮箱账户注册，无法收到证书过期通知。
-
-无参数运行原脚本可进入安装面板：
-
-```bash
+git clone https://github.com/Paff-77/TrustTunnel-Manager.git
+cd TrustTunnel-Manager
 sudo bash trusttunnel.sh
 ```
 
-交互式安装或更换 Token 时，输入的 Token 会显示在终端。
-
-安装成功后，从任意目录运行 `sudo TT` 打开面板，或使用 `sudo TT restart` 等子命令。面板的各级选项均使用数字选择。命令区分大小写。使用 `TT --help` 及 `TT <命令> --help` 查看选项。非交互命令缺少参数或遇到冲突时返回非零状态，不会提示输入。
-
-如果同名 A 记录需要修改或从代理模式切换到 DNS Only，须明确指定 `--update-dns`。重复 A 记录和 CNAME 冲突需要先手动处理。检测到已有服务安装时，安装命令会停止，避免覆盖原文件；如果只预先安装了与当前脚本完全相同的 `/usr/local/bin/TT`，可以正常继续首次安装。安装过程中若网络、签发或服务启动失败，可能留下已创建的 DNS、证书或配置。如果只留下 `cloudflare.ini`，重新安装时输入相同 Token 即可复用；其他残留需要先检查。
-
-## 常用命令
+也可以直接运行非交互安装。建议将 Cloudflare Token 放在 root 可读的凭据文件中：
 
 ```bash
-sudo TT status
-sudo TT start
-sudo TT stop
-sudo TT restart
-sudo TT logs                 # 最近日志；--follow 持续查看
-sudo TT dns status
-sudo TT dns sync --ip 203.0.113.10 --update-dns  # 改成实际公网 IPv4
-sudo TT dns sync --ipv6 auto  # 为已有安装启用 IPv6 双栈
-sudo TT dns sync --ipv6 2606:4700:4700::1111 --update-dns  # 替换为服务器公网 IPv6
-sudo TT dns token --cf-token-file /root/new-token
-sudo TT cert status
-sudo TT cert renew           # 强制续签，受 CA 签发频率限制
-sudo TT cert logs
-sudo TT config port --port 8443
-sudo TT config domain --domain new.example.com
-sudo TT user list
-sudo TT user add --username alice
-sudo TT user reset --username alice --password-file /root/alice-password
-sudo TT user delete --username alice --yes
-sudo TT export --username alice --format mihomo-flow --protocol both --node-name "香港节点"
-sudo TT export --username alice --format mihomo-full --output /root/alice.yaml
-sudo TT export --username alice --format surge --protocol h3 --node-name "香港 H3"
-sudo TT update               # 最新官方稳定版本
-sudo TT update --version v1.1.0
-sudo TT uninstall --yes       # 删除当前域名的 DNS、证书和管理器文件
-# 安装未完成时，直接运行脚本并指定此前使用的完整域名：
-sudo bash trusttunnel.sh uninstall --domain vpn.example.com --yes
+sudo bash trusttunnel.sh install \
+  --domain vpn.example.com \
+  --cf-token-file /root/cloudflare-token \
+  --email admin@example.com
 ```
 
-`203.0.113.10` 仅用于说明，请替换为有效公网地址。`--password-file` 文件内容为密码，不应含换行或控制字符；省略该选项时生成随机密码。导出的内容包含明文密码，请妥善保管；`--output` 创建的文件权限为 `0600`，已有文件不会被覆盖。Mihomo 的单行和块状格式均带有 `proxies:` 及相应缩进，`mihomo-full` 与块状格式等价；这些内容不包含规则和代理组。导出两种协议时，节点名称追加 `-H2`、`-H3`；单独导出一种协议时，自定义名称原样使用，默认名称分别为 `TT-H2` 和 `TT-H3`。安装时指定的名称会保存为默认值，导出时也可临时通过 `--node-name` 覆盖。`all` 是供人查看的多格式文本，不能作为单个客户端配置直接导入。
+Token 需要限于目标 Zone，并具有 `Zone → DNS → Edit` 和 `Zone → Zone → Read` 权限。安装时可指定 IPv4、IPv6、端口、用户名和节点名称；完整选项见 `TT install --help`。
 
-Surge 的 Trust Tunnel 不支持 UDP relay；HTTP/3 需要支持 `h3` 的客户端版本。不能安全表示为 Surge 字段的密码会使 Surge 导出失败，但仍可导出 Mihomo YAML。参见 [Surge 文档](https://manual.nssurge.com/policies/trust-tunnel.html)和 [Mihomo 文档](https://wiki.metacubex.one/en/config/proxies/trusttunnel/)。
+安装完成后：
 
-### 更新已安装的管理脚本
+```bash
+sudo TT                 # 打开数字菜单
+sudo TT status          # 查看服务状态
+sudo TT restart         # 重启服务
+```
 
-`TT update` 不会更新管理脚本自身。将新版 `trusttunnel.sh` 上传到服务器后，运行以下命令替换管理入口（不会重新安装服务端或覆盖已有配置）：
+## 命令参考
+
+| 命令 | 用途 | 示例 |
+| --- | --- | --- |
+| `status`、`start`、`stop`、`restart` | 查看或控制服务 | `sudo TT restart` |
+| `dns status`、`dns sync`、`dns token` | 查看、同步 DNS 或更换 Token | `sudo TT dns sync --ipv6 auto` |
+| `cert status`、`cert renew`、`cert logs` | 查看证书、续签或查看日志 | `sudo TT cert status` |
+| `user list`、`user add`、`user reset`、`user delete` | 管理认证用户 | `sudo TT user add --username alice` |
+| `config port`、`config domain` | 修改服务端口或域名 | `sudo TT config port --port 8443` |
+| `export` | 生成 Mihomo 或 Surge 客户端配置 | `sudo TT export --username alice --format mihomo-full` |
+| `logs` | 查看服务日志；`--follow` 持续查看 | `sudo TT logs --follow` |
+| `update` | 更新官方 TrustTunnel Endpoint | `sudo TT update` |
+| `uninstall --yes` | 卸载服务、记录、证书和管理器文件 | `sudo TT uninstall --yes` |
+
+为已有安装启用 IPv6 双栈：
+
+```bash
+sudo TT dns sync --ipv6 auto
+```
+
+`auto` 会尝试检测公网 IPv6，也可以传入具体地址。启用需要 VPS 本身有可用的公网 IPv6，并允许防火墙放行相应流量。
+
+### 导出客户端配置
+
+安装成功后会直接显示客户端配置。也可以在之后单独导出：
+
+```bash
+sudo TT export \
+  --username alice \
+  --format mihomo-full \
+  --protocol both \
+  --node-name "香港节点"
+```
+
+Mihomo 输出包含正确缩进的 `proxies:` 节点列表。HTTP/2 和 HTTP/3 同时导出时，节点名称分别追加 `-H2` 与 `-H3`；只导出一种协议时使用完整自定义名称。`--output` 可将配置保存到权限为 `0600` 的新文件。
+
+Surge 不支持 Trust Tunnel UDP relay。HTTP/3 需要客户端版本支持 `h3` 参数。详见 [Surge Trust Tunnel 文档](https://manual.nssurge.com/policies/trust-tunnel.html)和 [Mihomo TrustTunnel 文档](https://wiki.metacubex.one/en/config/proxies/trusttunnel/)。
+
+## 更新管理脚本
+
+`sudo TT update` 更新的是官方 TrustTunnel Endpoint 服务端程序，不会更新管理脚本。替换管理脚本时，将新版 `trusttunnel.sh` 上传至服务器，再运行：
 
 ```bash
 sudo install -m 700 trusttunnel.sh /usr/local/bin/TT
 ```
 
-旧版本状态文件会自动兼容。升级脚本后，可通过 `sudo TT dns sync --ipv6 auto` 为已有安装启用 IPv6；如果已有 AAAA 记录需要修改，附加 `--update-dns`。
+## 安全说明
 
-## 维护与安全
+- 客户端配置包含明文密码；安装完成后会显示在终端。避免把安装输出、配置文件或截图发布到公开位置。
+- 交互式 Token 输入会在终端中显示。命令行 `--cf-api TOKEN` 也可能进入 shell 历史或进程列表；自动化建议使用 `--cf-token-file`。
+- 管理器凭据保存在 `/etc/trusttunnel-manager`，服务配置保存在 `/opt/trusttunnel`。不要把真实凭据或生成的客户端配置提交到 Git。
+- DNS 记录发生冲突或与本工具保存的地址不符时，脚本会停止卸载或更新，避免误改其他用途的记录。
+- 卸载会尝试删除当前域名的 A/AAAA DNS 记录和 Certbot 证书。若记录或证书正被其他服务使用，请先迁移。
 
-配置及凭据位于 `/opt/trusttunnel` 和 `/etc/trusttunnel-manager`。服务启动成功后直接输出客户端配置，其中包含明文密码；请保护终端、安装日志和配置文件。状态输出不显示凭据。
+## 验证范围
 
-服务通过 systemd 管理；Certbot 使用 Cloudflare DNS 插件，续签部署钩子只在当前域名证书续签成功时重启服务。安装及修改域名时不会执行续签演练。修改域名会申请新证书后切换服务。原域名的 DNS 记录和证书不会自动删除。`TT update` 只更新官方 TrustTunnel Endpoint 服务端程序，不更新管理脚本、Certbot 或系统软件。更新失败时会尝试用临时保留的旧程序恢复服务，成功后删除该临时文件。
+运行 `bash tests/test.sh` 执行本地检查。测试会验证命令入口、配置生成、特殊字符、模拟 DNS 响应和失败恢复；安装 `jq` 后会执行完整 DNS 模拟，安装 PyYAML 后会额外解析生成的 YAML。
 
-卸载先通过 Cloudflare API 删除对应的 DNS 记录，再通过 Certbot 删除该域名证书，最后删除服务、配置及 `cloudflare.ini`。已有安装只删除与记录的 IP 一致的 A/AAAA 记录；安装未完成时需明确提供 `--domain`，脚本会删除该域名下 DNS Only 的 A/AAAA 记录。如果记录重复、已被代理或与安装记录不一致，脚本会停止并保留凭据。删除 API 或证书失败时也会保留凭据以便重试。证书可能被其他服务共用，脚本会检查常见服务配置以及其他证书续签配置；卸载前请确认该域名记录与证书不再被其他用途使用。其他域名的 DNS 和系统中共用的软件包不会被删除。
-
-## 测试与限制
-
-执行 `bash tests/test.sh`。若系统有 `jq`，测试还会使用模拟 Cloudflare 响应检查 A/AAAA 记录、更新授权和 CNAME 冲突，并模拟安装完成后的配置输出；若有 PyYAML，还会解析客户端 YAML。测试不修改系统服务或访问真实 Cloudflare。
-
-代码已使用官方 v1.1.0 x86_64 服务端验证生成的 TOML 能被读取。实际 VPS 上的系统安装、DNS 签发和续签、跨发行版与架构测试、以及 Mihomo/Surge 的真实代理连接仍需在具备相应环境和凭据的服务器上验收。
+官方 v1.1.0 x86_64 Endpoint 已用于验证服务端 TOML 配置可读取。真实 VPS 部署、Cloudflare/Let's Encrypt 在线签发，以及 Mihomo 和 Surge 的实际连通性需要在目标环境单独验收。
