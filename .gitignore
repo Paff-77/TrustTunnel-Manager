@@ -1,0 +1,23 @@
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+cloudflare.ini
+manager.json
+users.json
+*.pem
+*.key
+
+# Generated client configurations may contain passwords
+client*.yaml
+client*.yml
+mihomo*.yaml
+mihomo*.yml
+surge*.conf
+
+# Local runtime and editor files
+__pycache__/
+*.py[cod]
+.DS_Store
+.idea/
+.vscode/
