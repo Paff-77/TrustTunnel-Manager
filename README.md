@@ -54,12 +54,20 @@ VPS 的防火墙和云平台安全组需要允许客户端访问服务端端口�
 
 ### 安装
 
-下载项目后，在项目目录启动交互式面板：
+在服务器上直接下载管理脚本并启动交互式面板：
 
 ```bash
-git clone https://github.com/Paff-77/TrustTunnel-Manager.git
-cd TrustTunnel-Manager
-sudo bash trusttunnel.sh
+curl -fsSLo trusttunnel.sh https://raw.githubusercontent.com/Paff-77/TrustTunnel-Manager/main/trusttunnel.sh
+chmod +x trusttunnel.sh
+sudo ./trusttunnel.sh
+```
+
+也可以使用 `wget`：
+
+```bash
+wget -O trusttunnel.sh https://raw.githubusercontent.com/Paff-77/TrustTunnel-Manager/main/trusttunnel.sh
+chmod +x trusttunnel.sh
+sudo ./trusttunnel.sh
 ```
 
 也可以直接运行非交互安装。建议将 Cloudflare Token 放在 root 可读的凭据文件中：
